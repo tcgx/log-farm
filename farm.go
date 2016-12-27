@@ -1,7 +1,15 @@
+// GNU GPL v3 License
+
+// Copyright (c) 2016 github.com:go-trellis
+
 package logfarm
 
 import (
 	"time"
+)
+
+const (
+	namespace = "Trellis::LogFarm"
 )
 
 // LogFarm
