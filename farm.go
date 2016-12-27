@@ -1,15 +1,16 @@
 package logfarm
 
+import (
+	"time"
+)
+
 type LogFarm interface {
-	SetLevel(Level)
-	SetLogFilename(name string)
-
-	WriteLog(context string)
-	WriteLogIntoFilename(name, context string)
-
-	Debug(...interface{})
-	Info(...interface{})
-	Warn(...interface{})
-	Error(...interface{})
-	Panic(...interface{})
+	// Set string values
+	SetSeparator(string) bool
+	// minFileLength is 1024 bytes
+	SetMaxFileLength(int64) bool
+	//SetTimerToWriteLog
+	SetTimerToWriteLog(time.Duration) bool
+	// Write log into cache
+	WriteLog(filename string, data []string) bool
 }
