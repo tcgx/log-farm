@@ -3,39 +3,46 @@ package logfarm
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-trellis/files"
 	"github.com/go-trellis/formats/times"
+	"github.com/go-trellis/log-farm/proto"
 )
 
-type fileWitter struct {
+type fileWritter struct {
 	sync.RWMutex
 
-	MaxFileLength int64
+	MaxLength int64
 }
 
-var (
-	fileExecutor = files.New()
-)
+var fileExecutor = files.New()
 
-func (p *fileWitter) SetMaxFileLength(l int64) bool {
+func NewFileWritter() LoggerWritter {
+	return &fileWritter{
+		MaxLength: minLength,
+	}
+}
+
+func (p *fileWritter) SetMaxLength(l int64) bool {
 	p.Lock()
 	defer p.Unlock()
-	p.MaxFileLength = l
-	return p.MaxFileLength == l
+	if l > minLength {
+		p.MaxLength = l
+	}
+	return p.MaxLength == l
 }
 
-func (p *fileWitter) Write(tab string) (n int64, err error) {
+func (p *fileWritter) Write(tab string) (n int64, err error) {
+	p.Lock()
+	defer p.Unlock()
 
 	keys, ok := Cache.Members(tab)
 	if !ok {
 		return 0, nil
 	}
 
-	var (
-		count int
-		size  int64
-	)
+	var size int64
 
 	for _, name := range keys {
 		if fi, _ := fileExecutor.FileInfo(name); fi == nil {
@@ -50,28 +57,39 @@ func (p *fileWitter) Write(tab string) (n int64, err error) {
 		}
 
 		for _, v := range values {
-			log, ok := v.(LogItem)
+			log, ok := v.(logfarm_proto.LogItem)
 			if !ok {
 				continue
 			}
-			if count, err = fileExecutor.WriteAppend(
-				name, strings.Join(log.Values, log.Separator)+"\n"); err != nil {
+
+			count, e := fileExecutor.WriteAppend(name, strings.Join(
+				append([]string{log.CreateTime}, log.Values...), log.Separator)+
+				"\n")
+			if e != nil {
+				err = e
 				return
 			}
 			n += int64(count)
 			size += int64(count)
-			if size < p.MaxFileLength {
+			if size < p.MaxLength {
 				continue
 			}
 
 			if err = p.moveFile(name); err != nil {
 				return
 			}
+			size = 0
 		}
 	}
 	return
 }
 
-func (p *fileWitter) moveFile(name string) error {
-	return fileExecutor.Rename(name, name+times.TimeToDashString())
+func (p *fileWritter) ResetTab(tab string) bool {
+	p.Lock()
+	defer p.Unlock()
+	return Cache.DeleteAllObjects(tab)
+}
+
+func (p *fileWritter) moveFile(name string) error {
+	return fileExecutor.Rename(name, name+"."+times.TimeToRFC3339Nano(time.Now()))
 }

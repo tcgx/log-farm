@@ -1,11 +1,14 @@
 package logfarm
 
 const (
-	// min file length is 1024 bytes
-	minFileLength = 1024
+	// min length is 102400 bytes
+	minLength int64 = 102400
 )
 
+// LoggerWritter
 type LoggerWritter interface {
-	SetMaxFileLength(l int64) bool
-	Write(tab string) (int, error)
+	//
+	SetMaxLength(l int64) bool
+	Write(tab string) (int64, error)
+	ResetTab(tab string) bool
 }

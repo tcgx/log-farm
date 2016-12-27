@@ -3,6 +3,9 @@ package logfarm
 import (
 	"sync"
 	"time"
+
+	"github.com/go-trellis/formats/times"
+	"github.com/go-trellis/log-farm/proto"
 )
 
 type Logger struct {
@@ -16,22 +19,6 @@ type Logger struct {
 	sync.RWMutex
 }
 
-func NewLogger() LogFarm {
-	logger := &Logger{
-		CurVersion: VerA,
-		Separator:  "|",
-	}
-
-	return logger
-}
-
-type LogItem struct {
-	CreateTime time.Time
-	Filename   string
-	Values     []string
-	Separator  string
-}
-
 func (p *Logger) SetSeparator(s string) bool {
 	if s == "" {
 		return false
@@ -43,24 +30,27 @@ func (p *Logger) SetSeparator(s string) bool {
 	return p.Separator == s
 }
 
-func (p *Logger) SetMaxFileLength(l int64) bool {
-	return p.Writter.SetMaxFileLength(l)
+func (p *Logger) SetMaxLength(l int64) bool {
+	return p.Writter.SetMaxLength(l)
 }
 
 func (p *Logger) WriteLog(filename string, data []string) bool {
+	p.Lock()
+	defer p.Unlock()
 	if filename == "" {
 		return false
 	}
-	item := &LogItem{
-		CreateTime: time.Now(),
+	item := logfarm_proto.LogItem{
+		CreateTime: times.TimeToDashString(time.Now()),
 		Filename:   filename,
 		Values:     data,
 		Separator:  p.Separator,
 	}
+
 	return Cache.Insert(p.CurVersion, item.Filename, item)
 }
 
-func (p *Logger) SetTimerToWriteLog(t time.Duration) bool {
+func (p *Logger) SetLoopTimerToWriteLog(t time.Duration) bool {
 	p.Lock()
 	defer p.Unlock()
 	p.timer = t
@@ -94,4 +84,27 @@ func (p *Logger) getBackVer() string {
 	default:
 		return VerB
 	}
+}
+
+func (p *Logger) looperWritter() {
+	go func() {
+		for {
+			p.changeVer()
+
+			if _, e := p.write(p.getBackVer()); e != nil {
+				// TODO Log
+				continue
+			}
+			time.Sleep(p.timer)
+		}
+	}()
+}
+
+func (p *Logger) write(ver string) (n int64, err error) {
+
+	if n, err = p.Writter.Write(ver); err != nil {
+		return
+	}
+	p.Writter.ResetTab(ver)
+	return
 }
