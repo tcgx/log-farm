@@ -95,5 +95,5 @@ func (p *fileWritter) ResetTab(tab string) bool {
 }
 
 func (p *fileWritter) moveFile(name string) error {
-	return fileExecutor.Rename(name, name+"."+times.TimeToRFC3339Nano(time.Now()))
+	return fileExecutor.Rename(name, name+"."+times.FormatRFC3339Nano(time.Now()))
 }

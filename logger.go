@@ -45,7 +45,7 @@ func (p *Logger) WriteLog(filename string, data []string) bool {
 		return false
 	}
 	item := logfarm_proto.LogItem{
-		CreateTime: times.TimeToDashString(time.Now()),
+		CreateTime: times.FormatDashTime(time.Now()),
 		Filename:   filename,
 		Values:     data,
 		Separator:  p.Separator,
