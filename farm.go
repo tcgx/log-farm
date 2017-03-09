@@ -12,7 +12,7 @@ const (
 	namespace = "Trellis::LogFarm"
 )
 
-// LogFarm
+// LogFarm functions to wite logs
 type LogFarm interface {
 	// Set string values
 	SetSeparator(string) bool

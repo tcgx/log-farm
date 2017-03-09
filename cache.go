@@ -8,8 +8,10 @@ import (
 	"github.com/go-trellis/cache"
 )
 
+// Cache default cache
 var Cache = cache.New()
 
+// cache versions
 const (
 	VerA = namespace + "::verA"
 	VerB = namespace + "::verB"

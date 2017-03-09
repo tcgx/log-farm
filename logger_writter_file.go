@@ -22,6 +22,7 @@ type fileWritter struct {
 
 var fileExecutor = files.New()
 
+// NewFileWritter get file logger writter
 func NewFileWritter() LoggerWritter {
 	return &fileWritter{
 		MaxLength: minLength,

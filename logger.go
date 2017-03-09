@@ -12,6 +12,7 @@ import (
 	"github.com/go-trellis/log-farm/proto"
 )
 
+// Logger implements for logger writter
 type Logger struct {
 	CurVersion string
 	Separator  string
@@ -23,6 +24,7 @@ type Logger struct {
 	sync.RWMutex
 }
 
+// SetSeparator set Separator for a log's colunms
 func (p *Logger) SetSeparator(s string) bool {
 	if s == "" {
 		return false
@@ -34,10 +36,12 @@ func (p *Logger) SetSeparator(s string) bool {
 	return p.Separator == s
 }
 
+// SetMaxLength set max length
 func (p *Logger) SetMaxLength(l int64) bool {
 	return p.Writter.SetMaxLength(l)
 }
 
+// WriteLog write logs to the filename
 func (p *Logger) WriteLog(filename string, data []string) bool {
 	p.Lock()
 	defer p.Unlock()
@@ -54,6 +58,7 @@ func (p *Logger) WriteLog(filename string, data []string) bool {
 	return Cache.Insert(p.CurVersion, item.Filename, item)
 }
 
+// SetLoopTimerToWriteLog looper for writting logs
 func (p *Logger) SetLoopTimerToWriteLog(t time.Duration) bool {
 	p.Lock()
 	defer p.Unlock()
