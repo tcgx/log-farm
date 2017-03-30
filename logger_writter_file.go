@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-trellis/files"
-	"github.com/go-trellis/formats/times"
+	"github.com/go-trellis/formats"
 	"github.com/go-trellis/log-farm/proto"
 )
 
@@ -96,5 +96,5 @@ func (p *fileWritter) ResetTab(tab string) bool {
 }
 
 func (p *fileWritter) moveFile(name string) error {
-	return fileExecutor.Rename(name, name+"."+times.FormatRFC3339Nano(time.Now()))
+	return fileExecutor.Rename(name, name+"."+formats.FormatRFC3339Nano(time.Now()))
 }

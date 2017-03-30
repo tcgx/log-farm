@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-trellis/formats/times"
+	"github.com/go-trellis/formats"
 	"github.com/go-trellis/log-farm/proto"
 )
 
@@ -49,7 +49,7 @@ func (p *Logger) WriteLog(filename string, data []string) bool {
 		return false
 	}
 	item := logfarm_proto.LogItem{
-		CreateTime: times.FormatDashTime(time.Now()),
+		CreateTime: formats.FormatDashTime(time.Now()),
 		Filename:   filename,
 		Values:     data,
 		Separator:  p.Separator,
