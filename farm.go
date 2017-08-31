@@ -5,7 +5,10 @@
 package logfarm
 
 import (
-	"time"
+	"sync"
+
+	"github.com/go-trellis/config"
+	"github.com/go-trellis/log-farm/proto"
 )
 
 const (
@@ -14,24 +17,36 @@ const (
 
 // LogFarm functions to wite logs
 type LogFarm interface {
-	// Set string values
-	SetSeparator(string) bool
-	// minLength is 102400 bytes = 100 k
-	SetMaxLength(int64) bool
-	//SetTimerToWriteLog
-	SetLoopTimerToWriteLog(time.Duration) bool
 	// Write log into cache
-	WriteLog(filename string, data []string) bool
+	WriteLog(data []string) bool
+	// stop write data into file
+	Stop()
 }
 
+var mapLogger = make(map[string]*logger)
+var mapLoggerLocker sync.Mutex
+
 // New returns logfarm
-func New() LogFarm {
-	logger := &Logger{
-		CurVersion: VerA,
-		Separator:  "|",
-		Writter:    NewFileWritter(),
+func New(filename string, options config.Options) LogFarm {
+	mapLoggerLocker.Lock()
+	log := mapLogger[filename]
+	if log != nil {
+		mapLoggerLocker.Unlock()
+		return log
+	}
+	log = &logger{
+		Writter: NewFileWritter(filename, options),
 	}
 
-	logger.looperWritter()
-	return logger
+	_chanBuffer, err := options.Int("chan_buffer")
+	if err != nil {
+		panic(err)
+	}
+	log.logChan = make(chan *logfarm_proto.LogItem, _chanBuffer)
+	log.stopChan = make(chan bool)
+	log.looperWritter()
+
+	mapLogger[filename] = log
+	mapLoggerLocker.Unlock()
+	return log
 }

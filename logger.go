@@ -5,115 +5,44 @@
 package logfarm
 
 import (
-	"sync"
-	"time"
+	"fmt"
 
-	"github.com/go-trellis/formats"
 	"github.com/go-trellis/log-farm/proto"
 )
 
-// Logger implements for logger writter
-type Logger struct {
-	CurVersion string
-	Separator  string
-
+// logger implements for logger writter
+type logger struct {
 	Writter LoggerWritter
 
-	timer time.Duration
-
-	sync.RWMutex
-}
-
-// SetSeparator set Separator for a log's colunms
-func (p *Logger) SetSeparator(s string) bool {
-	if s == "" {
-		return false
-	}
-	p.Lock()
-	defer p.Unlock()
-
-	p.Separator = s
-	return p.Separator == s
-}
-
-// SetMaxLength set max length
-func (p *Logger) SetMaxLength(l int64) bool {
-	return p.Writter.SetMaxLength(l)
+	logChan  chan *logfarm_proto.LogItem
+	stopChan chan bool
 }
 
 // WriteLog write logs to the filename
-func (p *Logger) WriteLog(filename string, data []string) bool {
-	p.Lock()
-	defer p.Unlock()
-	if filename == "" {
-		return false
-	}
-	item := logfarm_proto.LogItem{
-		CreateTime: formats.FormatDashTime(time.Now()),
-		Filename:   filename,
-		Values:     data,
-		Separator:  p.Separator,
-	}
+func (p *logger) WriteLog(data []string) bool {
 
-	return Cache.Insert(p.CurVersion, item.Filename, item)
+	p.logChan <- &logfarm_proto.LogItem{Values: data}
+
+	return true
 }
 
-// SetLoopTimerToWriteLog looper for writting logs
-func (p *Logger) SetLoopTimerToWriteLog(t time.Duration) bool {
-	p.Lock()
-	defer p.Unlock()
-	p.timer = t
-	return p.timer == t
+// Stop stop write data into file
+func (p *logger) Stop() {
+	p.stopChan <- true
 }
 
-func (p *Logger) changeVer() {
-	p.Lock()
-	defer p.Unlock()
-
-	switch p.CurVersion {
-	case VerA:
-		p.CurVersion = VerB
-	case VerB:
-		p.CurVersion = VerC
-	case VerC:
-		p.CurVersion = VerA
-	default:
-		p.CurVersion = VerA
-	}
-}
-
-func (p *Logger) getBackVer() string {
-	switch p.CurVersion {
-	case VerA:
-		return VerC
-	case VerB:
-		return VerA
-	case VerC:
-		return VerB
-	default:
-		return VerB
-	}
-}
-
-func (p *Logger) looperWritter() {
+func (p *logger) looperWritter() {
 	go func() {
 		for {
-			p.changeVer()
-
-			if _, e := p.write(p.getBackVer()); e != nil {
-				// TODO Log
-				continue
+			select {
+			case log := <-p.logChan:
+				p.Writter.Write(log)
+			case <-p.stopChan:
+				close(p.logChan)
+				close(p.stopChan)
+				fmt.Println("closed")
+				return
 			}
-			time.Sleep(p.timer)
 		}
 	}()
-}
-
-func (p *Logger) write(ver string) (n int64, err error) {
-
-	if n, err = p.Writter.Write(ver); err != nil {
-		return
-	}
-	p.Writter.ResetTab(ver)
-	return
 }

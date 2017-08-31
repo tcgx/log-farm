@@ -5,96 +5,184 @@
 package logfarm
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-trellis/config"
 	"github.com/go-trellis/files"
-	"github.com/go-trellis/formats"
 	"github.com/go-trellis/log-farm/proto"
 )
 
+// MoveFileType move file type
+type MoveFileType int
+
+// MoveFileTypes
+const (
+	MoveFileTypeNothing MoveFileType = iota
+	MoveFileTypePerMinite
+	MoveFileTypeHourly
+	MoveFileTypeDaily
+)
+
 type fileWritter struct {
-	sync.RWMutex
+	locker sync.Mutex
 
 	MaxLength int64
+
+	writeFile  string
+	FileName   string
+	FileSuffix string
+	Separator  string
+
+	TimeToMove   MoveFileType
+	ticker       *time.Ticker
+	lastMoveFlag int
 }
 
 var fileExecutor = files.New()
 
 // NewFileWritter get file logger writter
-func NewFileWritter() LoggerWritter {
-	return &fileWritter{
-		MaxLength: minLength,
+func NewFileWritter(filename string, options config.Options) LoggerWritter {
+	fw := &fileWritter{
+		FileName:  filename,
+		Separator: "|",
 	}
+	var err error
+	if 0 == len(fw.FileName) {
+		panic("filename not exist, input with param filename")
+	}
+	fw.writeFile = fw.FileName
+
+	if options == nil {
+		return fw
+	}
+
+	fw.MaxLength, err = options.Int64("filemaxlength")
+	if err != nil {
+		panic(err)
+	}
+
+	fw.FileSuffix, err = options.String("filesuffix")
+	if err != nil {
+		panic(err)
+	} else if 0 != len(fw.FileSuffix) {
+		fw.writeFile += "." + fw.FileSuffix
+	}
+
+	_separator, err := options.String("separator")
+	if err != nil {
+		panic(err)
+	} else if 0 != len(_separator) {
+		fw.Separator = _separator
+	}
+
+	_movefiletype, err := options.Int("movefiletype")
+	if err != nil {
+		panic(err)
+	}
+	fw.TimeToMove = MoveFileType(_movefiletype)
+	switch fw.TimeToMove {
+	case MoveFileTypePerMinite:
+		fw.lastMoveFlag = time.Now().Minute()
+		fallthrough
+	case MoveFileTypeHourly:
+		fw.lastMoveFlag = time.Now().Hour()
+		fallthrough
+	case MoveFileTypeDaily:
+		fw.lastMoveFlag = time.Now().Day()
+		fw.ticker = time.NewTicker(time.Second)
+		fw.timeToMoveFile()
+	}
+
+	return fw
 }
 
-func (p *fileWritter) SetMaxLength(l int64) bool {
-	p.Lock()
-	defer p.Unlock()
-	if l > minLength {
-		p.MaxLength = l
-	}
-	return p.MaxLength == l
-}
+func (p *fileWritter) Write(log *logfarm_proto.LogItem) (n int, err error) {
 
-func (p *fileWritter) Write(tab string) (n int64, err error) {
-	p.Lock()
-	defer p.Unlock()
+	p.locker.Lock()
+	defer p.locker.Unlock()
 
-	keys, ok := Cache.Members(tab)
-	if !ok {
-		return 0, nil
+	p.judgeMoveFile()
+
+	n, err = fileExecutor.WriteAppend(p.writeFile, strings.Join(log.Values, p.Separator)+"\n")
+	if err != nil {
+		return
 	}
 
-	var size int64
-
-	for _, name := range keys {
-		if fi, _ := fileExecutor.FileInfo(name); fi == nil {
-			size = 0
-		} else {
-			size = fi.Size()
-		}
-
-		values, ok := Cache.Lookup(tab, name)
-		if !ok {
-			continue
-		}
-
-		for _, v := range values {
-			log, ok := v.(logfarm_proto.LogItem)
-			if !ok {
-				continue
-			}
-
-			count, e := fileExecutor.WriteAppend(name, strings.Join(
-				append([]string{log.CreateTime}, log.Values...), log.Separator)+
-				"\n")
-			if e != nil {
-				err = e
-				return
-			}
-			n += int64(count)
-			size += int64(count)
-			if size < p.MaxLength {
-				continue
-			}
-
-			if err = p.moveFile(name); err != nil {
-				return
-			}
-			size = 0
-		}
+	if p.MaxLength == 0 {
+		return
 	}
+
+	fi, e := fileExecutor.FileInfo(p.writeFile)
+	if e != nil {
+		return 0, e
+	}
+
+	if p.MaxLength > fi.Size() {
+		return
+	}
+
+	p.moveFile(time.Now().Format("20060102T150405.999999999"))
+
 	return
 }
 
-func (p *fileWritter) ResetTab(tab string) bool {
-	p.Lock()
-	defer p.Unlock()
-	return Cache.DeleteAllObjects(tab)
+func (p *fileWritter) judgeMoveFile() error {
+
+	timeStr, flag := "", 0
+	timeNow := time.Now()
+	switch p.TimeToMove {
+	case MoveFileTypePerMinite:
+		flag = timeNow.Minute()
+		timeStr = fmt.Sprintf("%s", timeNow.Format("20060102150405"))
+	case MoveFileTypeHourly:
+		flag = timeNow.Hour()
+		timeStr = fmt.Sprintf("%s%0.2d", timeNow.Format("20060102"), flag)
+	case MoveFileTypeDaily:
+		flag = time.Now().Day()
+		timeStr = timeNow.Format("20060102")
+	default:
+		return nil
+	}
+
+	if flag == p.lastMoveFlag {
+		return nil
+	}
+	p.lastMoveFlag = flag
+	return p.moveFile(timeStr)
 }
 
-func (p *fileWritter) moveFile(name string) error {
-	return fileExecutor.Rename(name, name+"."+formats.FormatRFC3339Nano(time.Now()))
+func (p *fileWritter) moveFile(timeStr string) error {
+	filename := fmt.Sprintf("%s_%s", p.FileName, timeStr)
+	if 0 != len(p.FileSuffix) {
+		filename += "." + p.FileSuffix
+	}
+	return fileExecutor.Rename(p.writeFile, filename)
+}
+
+func (p *fileWritter) timeToMoveFile() {
+	go func() {
+		for {
+			select {
+			case t := <-p.ticker.C:
+				flag := 0
+				switch p.TimeToMove {
+				case MoveFileTypePerMinite:
+					flag = t.Minute()
+				case MoveFileTypeHourly:
+					flag = t.Hour()
+				case MoveFileTypeDaily:
+					flag = t.Day()
+				}
+				if p.lastMoveFlag == flag {
+					continue
+				}
+				p.locker.Lock()
+				p.judgeMoveFile()
+				p.locker.Unlock()
+			}
+		}
+	}()
 }

@@ -7,8 +7,5 @@ syntax = "proto3";
 package logfarm.proto;
 
 message LogItem{
-    string create_time = 1;
-    string filename = 2;
-    repeated string values = 3;
-    string separator = 4;
+    repeated string values = 1;
 }

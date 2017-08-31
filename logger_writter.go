@@ -4,14 +4,18 @@
 
 package logfarm
 
+import (
+	"github.com/go-trellis/log-farm/proto"
+)
+
 const (
 	// min length is 102400 bytes
 	minLength int64 = 102400
+	//
+	chanBuffer int = 10000
 )
 
 // LoggerWritter logger writter repo
 type LoggerWritter interface {
-	SetMaxLength(l int64) bool
-	Write(tab string) (int64, error)
-	ResetTab(tab string) bool
+	Write(*logfarm_proto.LogItem) (int, error)
 }
