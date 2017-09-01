@@ -27,6 +27,12 @@ var mapLogger = make(map[string]*logger)
 var mapLoggerLocker sync.Mutex
 
 // New returns logfarm
+// Initial params
+// filename: the log path & name, see more in example
+// filesuffix: log file' suffix
+// chanbuffer: length of the log chan buffer
+// filemaxlength: the max length of log file, default: 0 is unlimit
+// movefiletype: move file by per-minite(1) or hourly(2) or daily(3), 0 is doing nothing
 func New(filename string, options config.Options) LogFarm {
 	mapLoggerLocker.Lock()
 	log := mapLogger[filename]
@@ -38,7 +44,7 @@ func New(filename string, options config.Options) LogFarm {
 		Writter: NewFileWritter(filename, options),
 	}
 
-	_chanBuffer, err := options.Int("chan_buffer")
+	_chanBuffer, err := options.Int("chanbuffer")
 	if err != nil {
 		panic(err)
 	}
