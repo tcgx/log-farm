@@ -12,13 +12,13 @@ var (
 	loggerTest1 = logfarm.New("log/test1.log", nil)
 	loggerTest2 = logfarm.New("log/test2",
 		config.Options{
-			"chan_buffer":  1000,
+			"chanbuffer":  1000,
 			"filesuffix":   "log",
 			"movefiletype": 1})
 	loggerTest3 = logfarm.New("log/test3",
 		config.Options{
 			"filemaxlength": 10240,
-			"chan_buffer":   1000,
+			"chanbuffer":    1000,
 			"filesuffix":    "log",
 			"movefiletype":  3,
 			"separator":     "::"})
