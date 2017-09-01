@@ -15,7 +15,8 @@ const (
 	chanBuffer int = 10000
 )
 
-// LoggerWritter logger writter repo
-type LoggerWritter interface {
+// LoggerWriter logger writter repo
+type LoggerWriter interface {
 	Write(*logfarm_proto.LogItem) (int, error)
+	Stop()
 }

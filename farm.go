@@ -41,7 +41,7 @@ func New(filename string, options config.Options) LogFarm {
 		return log
 	}
 	log = &logger{
-		Writter: NewFileWritter(filename, options),
+		Writer: NewFileWriter(filename, options),
 	}
 
 	_chanBuffer, err := options.Int("chanbuffer")
@@ -50,7 +50,7 @@ func New(filename string, options config.Options) LogFarm {
 	}
 	log.logChan = make(chan *logfarm_proto.LogItem, _chanBuffer)
 	log.stopChan = make(chan bool)
-	log.looperWritter()
+	log.looperWriter()
 
 	mapLogger[filename] = log
 	mapLoggerLocker.Unlock()

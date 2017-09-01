@@ -12,12 +12,12 @@ var (
 	loggerTest1 = logfarm.New("log/test1.log", nil)
 	loggerTest2 = logfarm.New("log/test2",
 		config.Options{
-			"chanbuffer":  1000,
+			"chanbuffer":   1000,
 			"filesuffix":   "log",
 			"movefiletype": 1})
 	loggerTest3 = logfarm.New("log/test3",
 		config.Options{
-			"filemaxlength": 10240,
+			"filemaxlength": 102400,
 			"chanbuffer":    1000,
 			"filesuffix":    "log",
 			"movefiletype":  3,
@@ -26,31 +26,25 @@ var (
 
 func main() {
 
-	for i := 0; i < 10000; i++ {
-		if (i+1)%1000 == 0 {
-			fmt.Println(i+1, "over")
-		}
-		loggerTest1.WriteLog([]string{time.Now().Format("20060102150405"), "1", "2", "3", "4", "5"})
-	}
+	writer("log1", loggerTest1, 10000, "1", "2", "3", "4", "5")
 
-	for i := 0; i < 100000; i++ {
-		if (i+1)%10000 == 0 {
-			fmt.Println(i+1, "over")
-		}
-		loggerTest2.WriteLog([]string{time.Now().Format("20060102150405"), "1", "2", "3", "4", "5", "6"})
-	}
+	writer("log2", loggerTest2, 100000, "1", "2", "3", "4", "5", "6")
 
-	for i := 0; i < 30000; i++ {
-		if (i+1)%10000 == 0 {
-			fmt.Println(i+1, "over")
-		}
-		loggerTest3.WriteLog([]string{time.Now().Format("20060102150405"), "1", "2", "3", "4", "5", "6", "7"})
-	}
+	writer("log3", loggerTest3, 30000, "1", "2", "3", "4", "5", "6", "7")
 
+	time.Sleep(time.Second * 60)
 	loggerTest1.Stop()
 	loggerTest2.Stop()
 	loggerTest3.Stop()
-	time.Sleep(time.Second * 1)
 	fmt.Println("...shell: wc *log*")
+}
 
+func writer(test string, log logfarm.LogFarm, times int, data ...string) {
+
+	for i := 0; i < times; i++ {
+		if (i+1)%10000 == 0 {
+			fmt.Println(test, i+1, "over")
+		}
+		log.WriteLog(append([]string{time.Now().Format("20060102150405")}, data...))
+	}
 }

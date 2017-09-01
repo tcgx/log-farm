@@ -26,7 +26,7 @@ const (
 	MoveFileTypeDaily
 )
 
-type fileWritter struct {
+type fileWriter struct {
 	locker sync.Mutex
 
 	MaxLength int64
@@ -39,15 +39,17 @@ type fileWritter struct {
 	TimeToMove   MoveFileType
 	ticker       *time.Ticker
 	lastMoveFlag int
+	stopChan     chan bool
 }
 
 var fileExecutor = files.New()
 
-// NewFileWritter get file logger writter
-func NewFileWritter(filename string, options config.Options) LoggerWritter {
-	fw := &fileWritter{
+// NewFileWriter get file logger writer
+func NewFileWriter(filename string, options config.Options) LoggerWriter {
+	fw := &fileWriter{
 		FileName:  filename,
 		Separator: "|",
+		stopChan:  make(chan bool),
 	}
 	var err error
 	if 0 == len(fw.FileName) {
@@ -99,7 +101,7 @@ func NewFileWritter(filename string, options config.Options) LoggerWritter {
 	return fw
 }
 
-func (p *fileWritter) Write(log *logfarm_proto.LogItem) (n int, err error) {
+func (p *fileWriter) Write(log *logfarm_proto.LogItem) (n int, err error) {
 
 	p.locker.Lock()
 	defer p.locker.Unlock()
@@ -129,7 +131,7 @@ func (p *fileWritter) Write(log *logfarm_proto.LogItem) (n int, err error) {
 	return
 }
 
-func (p *fileWritter) judgeMoveFile() error {
+func (p *fileWriter) judgeMoveFile() error {
 
 	timeStr, flag := "", 0
 	timeNow := time.Now()
@@ -154,15 +156,21 @@ func (p *fileWritter) judgeMoveFile() error {
 	return p.moveFile(timeStr)
 }
 
-func (p *fileWritter) moveFile(timeStr string) error {
+func (p *fileWriter) moveFile(timeStr string) error {
 	filename := fmt.Sprintf("%s_%s", p.FileName, timeStr)
 	if 0 != len(p.FileSuffix) {
 		filename += "." + p.FileSuffix
 	}
-	return fileExecutor.Rename(p.writeFile, filename)
+	err := fileExecutor.Rename(p.writeFile, filename)
+	if err != nil {
+		return err
+	}
+
+	_, err = fileExecutor.Write(p.writeFile, "")
+	return err
 }
 
-func (p *fileWritter) timeToMoveFile() {
+func (p *fileWriter) timeToMoveFile() {
 	go func() {
 		for {
 			select {
@@ -182,7 +190,13 @@ func (p *fileWritter) timeToMoveFile() {
 				p.locker.Lock()
 				p.judgeMoveFile()
 				p.locker.Unlock()
+			case <-p.stopChan:
+				return
 			}
 		}
 	}()
+}
+
+func (p *fileWriter) Stop() {
+	p.stopChan <- true
 }

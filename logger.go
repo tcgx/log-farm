@@ -5,14 +5,12 @@
 package logfarm
 
 import (
-	"fmt"
-
 	"github.com/go-trellis/log-farm/proto"
 )
 
-// logger implements for logger writter
+// logger implements for logger writer
 type logger struct {
-	Writter LoggerWritter
+	Writer LoggerWriter
 
 	logChan  chan *logfarm_proto.LogItem
 	stopChan chan bool
@@ -31,16 +29,16 @@ func (p *logger) Stop() {
 	p.stopChan <- true
 }
 
-func (p *logger) looperWritter() {
+func (p *logger) looperWriter() {
 	go func() {
 		for {
 			select {
 			case log := <-p.logChan:
-				p.Writter.Write(log)
+				p.Writer.Write(log)
 			case <-p.stopChan:
+				p.Writer.Stop()
 				close(p.logChan)
 				close(p.stopChan)
-				fmt.Println("closed")
 				return
 			}
 		}
